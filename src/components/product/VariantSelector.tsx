@@ -21,94 +21,73 @@ export function VariantSelector({ product }: { product: Product }) {
   }
 
   return variantTypes?.map((type) => {
-    if (!type || typeof type !== 'object') {
-      return <></>
-    }
+    if (!type || typeof type !== 'object') return <></>
 
     const options = type.options?.docs
-
-    if (!options || !Array.isArray(options) || !options.length) {
-      return <></>
-    }
+    if (!options || !Array.isArray(options) || !options.length) return <></>
 
     return (
-      <dl className="" key={type.id}>
+      <dl key={type.id}>
         <dt className="mb-4 text-sm">{type.label}</dt>
         <dd className="flex flex-wrap gap-3">
           <React.Fragment>
             {options?.map((option) => {
-              if (!option || typeof option !== 'object') {
-                return <></>
-              }
+              if (!option || typeof option !== 'object') return <></>
 
               const optionID = option.id
               const optionKeyLowerCase = type.name
 
-              // Base option params on current params so we can preserve any other param state in the url.
               const optionSearchParams = new URLSearchParams(searchParams.toString())
-
-              // Remove image and variant ID from this search params so we can loop over it safely.
               optionSearchParams.delete('variant')
               optionSearchParams.delete('image')
-
-              // Update the option params using the current option to reflect how the url *would* change,
-              // if the option was clicked.
               optionSearchParams.set(optionKeyLowerCase, String(optionID))
 
               const currentOptions = Array.from(optionSearchParams.values())
 
               let isAvailableForSale = true
 
-              // Find a matching variant
               if (variants) {
                 const matchingVariant = variants
                   .filter((variant) => typeof variant === 'object')
                   .find((variant) => {
                     if (!variant.options || !Array.isArray(variant.options)) return false
-
-                    // Check if all variant options match the current options in the URL
                     return variant.options.every((variantOption) => {
                       if (typeof variantOption !== 'object')
                         return currentOptions.includes(String(variantOption))
-
                       return currentOptions.includes(String(variantOption.id))
                     })
                   })
 
                 if (matchingVariant) {
-                  // If we found a matching variant, set the variant ID in the search params.
                   optionSearchParams.set('variant', String(matchingVariant.id))
-
-                  if (matchingVariant.inventory && matchingVariant.inventory > 0) {
-                    isAvailableForSale = true
-                  } else {
-                    isAvailableForSale = false
-                  }
+                  // Mark as unavailable but still allow selection so the
+                  // waitlist form can appear via StockIndicator
+                  isAvailableForSale = (matchingVariant.inventory ?? 0) > 0
                 }
               }
 
               const optionUrl = createUrl(pathname, optionSearchParams)
 
-              // The option is active if it's in the url params.
-              const isActive =
-                Boolean(isAvailableForSale) &&
-                searchParams.get(optionKeyLowerCase) === String(optionID)
+              // Active if this option is currently selected in URL
+              // (decoupled from isAvailableForSale so OOS options can be active)
+              const isActive = searchParams.get(optionKeyLowerCase) === String(optionID)
 
               return (
                 <Button
-                  variant={'ghost'}
-                  aria-disabled={!isAvailableForSale}
-                  className={clsx('px-2', {
-                    'bg-primary/5 text-primary': isActive,
-                  })}
-                  disabled={!isAvailableForSale}
+                  variant="ghost"
                   key={option.id}
+                  // Allow clicking even when OOS — StockIndicator handles the UX
+                  disabled={false}
+                  aria-disabled={!isAvailableForSale}
+                  className={clsx('px-2 relative', {
+                    'bg-primary/5 text-primary ring-1 ring-primary': isActive,
+                    // Strikethrough style for OOS options
+                    'opacity-40 line-through': !isAvailableForSale,
+                  })}
                   onClick={() => {
-                    router.replace(`${optionUrl}`, {
-                      scroll: false,
-                    })
+                    router.replace(optionUrl, { scroll: false })
                   }}
-                  title={`${option.label} ${!isAvailableForSale ? ' (Out of Stock)' : ''}`}
+                  title={`${option.label}${!isAvailableForSale ? ' (Out of Stock)' : ''}`}
                 >
                   {option.label}
                 </Button>

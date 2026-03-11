@@ -77,6 +77,7 @@ export interface Config {
     categories: Category;
     media: Media;
     'product-variants': ProductVariant;
+    waitlist: Waitlist;
     forms: Form;
     'form-submissions': FormSubmission;
     addresses: Address;
@@ -110,6 +111,7 @@ export interface Config {
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'product-variants': ProductVariantsSelect<false> | ProductVariantsSelect<true>;
+    waitlist: WaitlistSelect<false> | WaitlistSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     addresses: AddressesSelect<false> | AddressesSelect<true>;
@@ -1062,6 +1064,18 @@ export interface ProductVariant {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "waitlist".
+ */
+export interface Waitlist {
+  id: number;
+  email: string;
+  product: number | Product;
+  status?: ('pending' | 'notified') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "form-submissions".
  */
 export interface FormSubmission {
@@ -1199,6 +1213,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'product-variants';
         value: number | ProductVariant;
+      } | null)
+    | ({
+        relationTo: 'waitlist';
+        value: number | Waitlist;
       } | null)
     | ({
         relationTo: 'forms';
@@ -1528,6 +1546,17 @@ export interface ProductVariantsSelect<T extends boolean = true> {
   stock?: T;
   inStock?: T;
   image?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "waitlist_select".
+ */
+export interface WaitlistSelect<T extends boolean = true> {
+  email?: T;
+  product?: T;
+  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }

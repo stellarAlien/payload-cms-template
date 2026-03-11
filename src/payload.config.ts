@@ -15,7 +15,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-
+import { Waitlist } from '@/collections/Waitlist'
 import { ProductVariants } from '@/collections/Products/Productvariants'
 
 // Import fundamental collections
@@ -41,7 +41,7 @@ export default buildConfig({
     },
   },
   // Registering these here prevents "invalid relationship" errors
-  collections: [Users, Pages, Categories, Media, ProductVariants],
+  collections: [Users, Pages, Categories, Media, ProductVariants, Waitlist],
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
