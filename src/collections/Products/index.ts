@@ -4,6 +4,7 @@ import { MediaBlock } from '@/blocks/MediaBlock/config'
 import { slugField } from 'payload'
 import { generatePreviewPath } from '@/utilities/generatePreviewPath'
 import { CollectionOverride } from '@payloadcms/plugin-ecommerce/types'
+import { notifyWaitlist } from './hooks/notifyWaitlist' // <--- IMPORT HOOK
 import {
   MetaDescriptionField,
   MetaImageField,
@@ -22,6 +23,15 @@ import { DefaultDocumentIDType, Where } from 'payload'
 
 export const ProductsCollection: CollectionOverride = ({ defaultCollection }) => ({
   ...defaultCollection,
+  // --- ADD HOOKS HERE ---
+  hooks: {
+    ...defaultCollection?.hooks,
+    afterChange: [
+      ...(defaultCollection?.hooks?.afterChange || []),
+      notifyWaitlist,
+    ],
+  },
+  // --- END HOOKS ---
   admin: {
     ...defaultCollection?.admin,
     defaultColumns: ['title', 'enableVariants', '_status', 'variants.variants'],
@@ -59,20 +69,19 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
       type: 'tabs',
       tabs: [
         {
+          label: 'Content',
           fields: [
             {
               name: 'description',
               type: 'richText',
               editor: lexicalEditor({
-                features: ({ rootFeatures }) => {
-                  return [
-                    ...rootFeatures,
-                    HeadingFeature({ enabledHeadingSizes: ['h1', 'h2', 'h3', 'h4'] }),
-                    FixedToolbarFeature(),
-                    InlineToolbarFeature(),
-                    HorizontalRuleFeature(),
-                  ]
-                },
+                features: ({ rootFeatures }) => [
+                  ...rootFeatures,
+                  HeadingFeature({ enabledHeadingSizes: ['h1', 'h2', 'h3', 'h4'] }),
+                  FixedToolbarFeature(),
+                  InlineToolbarFeature(),
+                  HorizontalRuleFeature(),
+                ],
               }),
               label: false,
               required: false,
@@ -93,80 +102,45 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
                   type: 'relationship',
                   relationTo: 'variantOptions',
                   admin: {
-                    condition: (data) => {
-                      return data?.enableVariants === true && data?.variantTypes?.length > 0
-                    },
+                    condition: (data) => data?.enableVariants === true && data?.variantTypes?.length > 0,
                   },
                   filterOptions: ({ data }) => {
                     if (data?.enableVariants && data?.variantTypes?.length) {
-                      const variantTypeIDs = data.variantTypes.map((item: any) => {
-                        if (typeof item === 'object' && item?.id) {
-                          return item.id
-                        }
-                        return item
-                      }) as DefaultDocumentIDType[]
+                      const variantTypeIDs = data.variantTypes.map((item: any) =>
+                        typeof item === 'object' && item?.id ? item.id : item
+                      ) as DefaultDocumentIDType[]
 
-                      if (variantTypeIDs.length === 0)
-                        return {
-                          variantType: {
-                            in: [],
-                          },
-                        }
+                      if (variantTypeIDs.length === 0) return { variantType: { in: [] } }
 
-                      const query: Where = {
-                        variantType: {
-                          in: variantTypeIDs,
-                        },
-                      }
-
-                      return query
+                      return { variantType: { in: variantTypeIDs } }
                     }
-
-                    return {
-                      variantType: {
-                        in: [],
-                      },
-                    }
+                    return { variantType: { in: [] } }
                   },
                 },
               ],
             },
-
             {
               name: 'layout',
               type: 'blocks',
               blocks: [CallToAction, Content, MediaBlock],
             },
           ],
-          label: 'Content',
         },
         {
+          label: 'Product Details',
           fields: [
             ...defaultCollection.fields,
             {
               name: 'relatedProducts',
               type: 'relationship',
               filterOptions: ({ id }) => {
-                if (id) {
-                  return {
-                    id: {
-                      not_in: [id],
-                    },
-                  }
-                }
-
-                // ID comes back as undefined during seeding so we need to handle that case
-                return {
-                  id: {
-                    exists: true,
-                  },
-                }
+                if (id) return { id: { not_in: [id] } }
+                return { id: { exists: true } }
               },
               hasMany: true,
               relationTo: 'products',
             },
           ],
-          label: 'Product Details',
         },
         {
           name: 'meta',
@@ -177,19 +151,11 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
               descriptionPath: 'meta.description',
               imagePath: 'meta.image',
             }),
-            MetaTitleField({
-              hasGenerateFn: true,
-            }),
-            MetaImageField({
-              relationTo: 'media',
-            }),
-
+            MetaTitleField({ hasGenerateFn: true }),
+            MetaImageField({ relationTo: 'media' }),
             MetaDescriptionField({}),
             PreviewField({
-              // if the `generateUrl` function is configured
               hasGenerateFn: true,
-
-              // field paths to match the target field for data
               titlePath: 'meta.title',
               descriptionPath: 'meta.description',
             }),

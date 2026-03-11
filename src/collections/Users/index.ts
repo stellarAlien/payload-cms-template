@@ -55,7 +55,7 @@ export const Users: CollectionConfig = {
         },
       ],
     },
-    {
+   /* {
       name: 'orders',
       type: 'join',
       collection: 'orders',
@@ -64,7 +64,7 @@ export const Users: CollectionConfig = {
         allowCreate: false,
         defaultColumns: ['id', 'createdAt', 'total', 'currency', 'items'],
       },
-    },
+    },*/
     {
       name: 'cart',
       type: 'join',

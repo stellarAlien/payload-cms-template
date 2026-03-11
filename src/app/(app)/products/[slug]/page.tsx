@@ -27,10 +27,8 @@ export async function generateMetadata({ params }: Args): Promise<Metadata> {
   if (!product) return notFound()
 
   const gallery = product.gallery?.filter((item) => typeof item.image === 'object') || []
-
   const metaImage = typeof product.meta?.image === 'object' ? product.meta?.image : undefined
   const canIndex = product._status === 'published'
-
   const seoImage = metaImage || (gallery.length ? (gallery[0]?.image as Media) : undefined)
 
   return {
@@ -49,10 +47,7 @@ export async function generateMetadata({ params }: Args): Promise<Metadata> {
       : null,
     robots: {
       follow: canIndex,
-      googleBot: {
-        follow: canIndex,
-        index: canIndex,
-      },
+      googleBot: { follow: canIndex, index: canIndex },
       index: canIndex,
     },
     title: product.meta?.title || product.title,
@@ -68,25 +63,30 @@ export default async function ProductPage({ params }: Args) {
   const gallery =
     product.gallery
       ?.filter((item) => typeof item.image === 'object')
-      .map((item) => ({
-        ...item,
-        image: item.image as Media,
-      })) || []
+      .map((item) => ({ ...item, image: item.image as Media })) || []
 
   const metaImage = typeof product.meta?.image === 'object' ? product.meta?.image : undefined
-  const hasStock = product.enableVariants
-    ? product?.variants?.docs?.some((variant) => {
-        if (typeof variant !== 'object') return false
-        return variant.inventory && variant?.inventory > 0
-      })
-    : product.inventory! > 0
 
+  // ── Stock check ────────────────────────────────────────────────────────────
+  // Variant product: in stock if ANY variant has stock > 0
+  // Simple product:  in stock if top-level inventory > 0
+  const hasStock = product.enableVariants
+    ? (product?.variants as any)?.docs?.some((variant: any) => {
+        if (typeof variant !== 'object') return false
+        return (variant.stock ?? variant.inventory ?? 0) > 0
+      })
+    : (product.inventory ?? 0) > 0
+
+  // ── Display price ──────────────────────────────────────────────────────────
+  // Variant product: highest variant price (shown as starting price in schema)
+  // Simple product:  base product price
   let price = product.priceInUSD
 
-  if (product.enableVariants && product?.variants?.docs?.length) {
-    price = product?.variants?.docs?.reduce((acc, variant) => {
-      if (typeof variant === 'object' && variant?.priceInUSD && acc && variant?.priceInUSD > acc) {
-        return variant.priceInUSD
+  if (product.enableVariants && (product?.variants as any)?.docs?.length) {
+    price = (product?.variants as any)?.docs?.reduce((acc: number | undefined, variant: any) => {
+      if (typeof variant === 'object') {
+        const variantPrice = variant.priceInUSD ?? variant.price
+        if (variantPrice && acc && variantPrice > acc) return variantPrice
       }
       return acc
     }, price)
@@ -101,7 +101,7 @@ export default async function ProductPage({ params }: Args) {
     offers: {
       '@type': 'AggregateOffer',
       availability: hasStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      price: price,
+      price,
       priceCurrency: 'usd',
     },
   }
@@ -112,9 +112,7 @@ export default async function ProductPage({ params }: Args) {
   return (
     <React.Fragment>
       <script
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd),
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
         type="application/ld+json"
       />
       <div className="container pt-8 pb-8">
@@ -136,6 +134,13 @@ export default async function ProductPage({ params }: Args) {
           </div>
 
           <div className="basis-full lg:basis-1/2">
+            {/*
+              ProductDescription handles everything in the right column:
+              - Title + price display
+              - VariantSelector (when product.enableVariants is true)
+              - StockIndicator (for simple products)
+              - Add to cart button gated on variant selection
+            */}
             <ProductDescription product={product} />
           </div>
         </div>
@@ -168,10 +173,7 @@ function RelatedProducts({ products }: { products: Product[] }) {
           >
             <Link className="relative h-full w-full" href={`/products/${product.slug}`}>
               <GridTileImage
-                label={{
-                  amount: product.priceInUSD!,
-                  title: product.title,
-                }}
+                label={{ amount: product.priceInUSD!, title: product.title }}
                 media={product.meta?.image as Media}
               />
             </Link>
@@ -184,11 +186,12 @@ function RelatedProducts({ products }: { products: Product[] }) {
 
 const queryProductBySlug = async ({ slug }: { slug: string }) => {
   const { isEnabled: draft } = await draftMode()
-
   const payload = await getPayload({ config: configPromise })
 
   const result = await payload.find({
     collection: 'products',
+    // depth:3 populates the join field so product.variants.docs contains
+    // full variant documents with stock, variantOptions, inStock etc.
     depth: 3,
     draft,
     limit: 1,
@@ -196,22 +199,13 @@ const queryProductBySlug = async ({ slug }: { slug: string }) => {
     pagination: false,
     where: {
       and: [
-        {
-          slug: {
-            equals: slug,
-          },
-        },
+        { slug: { equals: slug } },
         ...(draft ? [] : [{ _status: { equals: 'published' } }]),
       ],
     },
-    populate: {
-      variants: {
-        title: true,
-        priceInUSD: true,
-        inventory: true,
-        options: true,
-      },
-    },
+    // populate removed — depth:3 already fetches all variant fields.
+    // Explicit populate caused TS errors (price/stock/inStock/variantOptions
+    // are not in the plugin's VariantsSelect type).
   })
 
   return result.docs?.[0] || null
